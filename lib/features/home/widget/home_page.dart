@@ -1,182 +1,309 @@
-import 'package:dartx/dartx.dart';
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
-import 'package:hiddify/core/app_info/app_info_provider.dart';
-import 'package:hiddify/core/localization/translations.dart';
-import 'package:hiddify/core/router/bottom_sheets/bottom_sheets_notifier.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
+import 'package:hiddify/features/kolobok/api_service.dart';
+import 'package:hiddify/features/kolobok/auth_page.dart';
+import 'package:hiddify/features/kolobok/profile_page.dart';
+import 'package:hiddify/features/kolobok/subscription_page.dart';
+import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
-import 'package:hiddify/features/profile/widget/profile_tile.dart';
-import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
-import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
-import 'package:hiddify/gen/assets.gen.dart';
+import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
-class HomePage extends HookConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final t = ref.watch(translationsProvider).requireValue;
-    // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
-    final activeProfile = ref.watch(activeProfileProvider);
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
 
+class _HomePageState extends ConsumerState<HomePage> {
+  final ApiService _api = ApiService();
+  int _tabIndex = 0;
+  String? _selectedCountryKey;
+  final Map<String, String> _countryProfileId = <String, String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _api.getToken(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final token = snapshot.data;
+        if (token == null || token.isEmpty) {
+          return AuthPage(
+            onAuthenticated: () {
+              if (!mounted) return;
+              setState(() {});
+            },
+          );
+        }
+        return _buildMainShell();
+      },
+    );
+  }
+
+  Widget _buildMainShell() {
     return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
-        // leading: (RootScaffold.stateKey.currentState?.hasDrawer ?? false) && showDrawerButton(context)
-        //     ? DrawerButton(
-        //         onPressed: () {
-        //           RootScaffold.stateKey.currentState?.openDrawer();
-        //         },
-        //       )
-        //     : null,
-        title: Row(
-          children: [
-            Assets.images.logo.svg(height: 24),
-            const Gap(8),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: t.common.appTitle),
-                  const TextSpan(text: " "),
-                  const WidgetSpan(child: AppVersionLabel(), alignment: PlaceholderAlignment.middle),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // IconButton(
-          //     onPressed: () => const QuickSettingsRoute().push(context),
-          //     icon: const Icon(FluentIcons.options_24_filled),
-          //     material: (context, platform) => MaterialIconButtonData(
-          //           tooltip: t.config.quickSettings,
-          //         )),
-          // IconButton(
-          //     onPressed: () => const AddProfileRoute().push(context),
-          //     icon: const Icon(FluentIcons.add_circle_24_filled),
-          //     material: (context, platform) => MaterialIconButtonData(
-          //           tooltip: t.profile.add.buttonText,
-          //         )),
-          Semantics(
-            key: const ValueKey("profile_quick_settings"),
-            label: t.pages.home.quickSettings,
-            child: IconButton(
-              icon: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
-              onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showQuickSettings(),
-            ),
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Kolobok VPN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        centerTitle: true,
+      ),
+      body: IndexedStack(
+        index: _tabIndex,
+        children: [
+          _HomeTab(
+            apiService: _api,
+            selectedCountryKey: _selectedCountryKey,
+            onCountrySelected: _onCountrySelected,
           ),
-          const Gap(8),
-          Semantics(
-            key: const ValueKey("profile_add_button"),
-            label: t.pages.profiles.add,
-            child: IconButton(
-              icon: Icon(Icons.add_rounded, color: theme.colorScheme.primary),
-              onPressed: () => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(),
-            ),
+          SubscriptionPage(apiService: _api),
+          KolobokProfilePage(
+            apiService: _api,
+            onLogout: () {
+              if (!mounted) return;
+              setState(() {
+                _tabIndex = 0;
+                _selectedCountryKey = null;
+                _countryProfileId.clear();
+              });
+            },
           ),
-          const Gap(8),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const AssetImage('assets/images/world_map.png'), // Replace with your image path
-            fit: BoxFit.cover,
-            opacity: 0.09,
-            colorFilter: theme.brightness == Brightness.dark
-                ? ColorFilter.mode(Colors.white.withValues(alpha: .15), BlendMode.srcIn) //
-                : ColorFilter.mode(
-                    Colors.grey.withValues(alpha: 1),
-                    BlendMode.srcATop,
-                  ), // Apply white tint in dark mode
-          ),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 600, // Set the maximum width here
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    // switch (activeProfile) {
-                    // AsyncData(value: final profile?) =>
-                    MultiSliver(
-                      children: [
-                        // const Gap(100),
-                        switch (activeProfile) {
-                          AsyncData(value: final profile?) => ProfileTile(
-                            profile: profile,
-                            isMain: true,
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            color: Theme.of(context).colorScheme.surfaceContainer,
-                          ),
-                          _ => const Text(""),
-                        },
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [ConnectionButton(), ActiveProxyDelayIndicator()],
-                                ),
-                              ),
-                              ActiveProxyFooter(),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    // AsyncData() => switch (hasAnyProfile) {
-                    //     AsyncData(value: true) => const EmptyActiveProfileHomeBody(),
-                    //     _ => const EmptyProfilesHomeBody(),
-                    //   },
-                    // AsyncError(:final error) => SliverErrorBodyPlaceholder(t.presentShortError(error)),
-                    // _ => const SliverToBoxAdapter(),
-                    // },
-                  ],
-                ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tabIndex,
+        onDestinationSelected: (value) => setState(() => _tabIndex = value),
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF7B2FBE).withValues(alpha: 0.15),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Главная'),
+          NavigationDestination(icon: Icon(Icons.card_membership_outlined), selectedIcon: Icon(Icons.card_membership), label: 'Подписка'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onCountrySelected(CountryNode node, String vlessConfig) async {
+    final countryKey = node.key;
+    _selectedCountryKey = countryKey;
+    setState(() {});
+
+    String? profileId = _countryProfileId[countryKey];
+    if (profileId == null) {
+      final before = await ref.read(profilesNotifierProvider.future);
+      final beforeIds = before.map((e) => e.id).toSet();
+      final repo = await ref.read(profileRepositoryProvider.future);
+      final result = await repo.addLocal(vlessConfig).run();
+      if (result.isLeft()) return;
+      final after = await ref.read(profilesNotifierProvider.future);
+      final created = after.where((e) => !beforeIds.contains(e.id)).toList();
+      if (created.isNotEmpty) {
+        profileId = created.first.id;
+        _countryProfileId[countryKey] = profileId;
+      }
+    }
+    if (profileId == null) return;
+
+    await ref.read(profilesNotifierProvider.notifier).selectActiveProfile(profileId);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+
+    final status = ref.read(connectionNotifierProvider).valueOrNull;
+    if (status == const Connected()) {
+      final profile = await ref.read(activeProfileProvider.future);
+      await ref.read(connectionNotifierProvider.notifier).reconnect(profile);
+    } else if (status == const Disconnected()) {
+      await ref.read(connectionNotifierProvider.notifier).mayConnect();
+    }
+  }
+}
+
+class _HomeTab extends ConsumerStatefulWidget {
+  const _HomeTab({
+    required this.apiService,
+    required this.selectedCountryKey,
+    required this.onCountrySelected,
+  });
+
+  final ApiService apiService;
+  final String? selectedCountryKey;
+  final Future<void> Function(CountryNode node, String vlessConfig) onCountrySelected;
+
+  @override
+  ConsumerState<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends ConsumerState<_HomeTab> {
+  late Future<({List<CountryNode> nodes, Map<String, String> configs})> _dataFuture;
+  bool _actionLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dataFuture = _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<({List<CountryNode> nodes, Map<String, String> configs})>(
+      future: _dataFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Ошибка загрузки: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+        }
+        final nodes = snapshot.data!.nodes;
+        final configs = snapshot.data!.configs;
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            setState(() => _dataFuture = _load());
+            await _dataFuture;
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const SizedBox(height: 8),
+              const Center(child: ConnectionButton()),
+              const SizedBox(height: 20),
+              const Text(
+                'Выберите страну',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              ...nodes.map((node) {
+                final selected = node.key == widget.selectedCountryKey;
+                return _CountryCard(
+                  node: node,
+                  selected: selected,
+                  loading: _actionLoading,
+                  onTap: () async {
+                    final config = configs[node.key];
+                    if (config == null || config.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Нет конфига для страны ${node.name}')),
+                      );
+                      return;
+                    }
+                    setState(() => _actionLoading = true);
+                    try {
+                      await widget.onCountrySelected(node, config);
+                    } finally {
+                      if (mounted) setState(() => _actionLoading = false);
+                    }
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<({List<CountryNode> nodes, Map<String, String> configs})> _load() async {
+    final rawNodes = await widget.apiService.getNodes();
+    final rawConfigs = await widget.apiService.getSubscriptionConfigs();
+    final nodes = rawNodes.map(CountryNode.fromApi).toList();
+    final configs = _parseConfigs(rawConfigs);
+    return (nodes: nodes, configs: configs);
+  }
+
+  Map<String, String> _parseConfigs(Map<String, dynamic> raw) {
+    final result = <String, String>{};
+    final dynamic source = raw['data'] ?? raw['configs'] ?? raw;
+    if (source is Map) {
+      for (final entry in source.entries) {
+        if (entry.value == null) continue;
+        result[entry.key.toString().toLowerCase()] = entry.value.toString();
+      }
+    } else if (source is List) {
+      for (final item in source.whereType<Map>()) {
+        final map = item.cast<String, dynamic>();
+        final key = (map['country_code'] ?? map['country'] ?? map['name'] ?? '').toString().toLowerCase();
+        final config = (map['config'] ?? map['vless'] ?? map['url'] ?? '').toString();
+        if (key.isNotEmpty && config.isNotEmpty) result[key] = config;
+      }
+    }
+    return result;
+  }
+}
+
+class _CountryCard extends StatelessWidget {
+  const _CountryCard({
+    required this.node,
+    required this.selected,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final CountryNode node;
+  final bool selected;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      color: selected ? const Color(0xFF7B2FBE) : Colors.white.withValues(alpha: 0.95),
+      child: ListTile(
+        onTap: loading ? null : onTap,
+        leading: Text(node.flag, style: const TextStyle(fontSize: 24)),
+        title: Text(
+          node.name,
+          style: TextStyle(color: selected ? Colors.white : const Color(0xFF1A1A2E), fontWeight: FontWeight.w600),
         ),
+        subtitle: Text(
+          'Пинг: ${node.pingMs} ms',
+          style: TextStyle(color: selected ? Colors.white70 : Colors.black54),
+        ),
+        trailing: selected
+            ? const Icon(Icons.check_circle, color: Colors.white)
+            : const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
 }
 
-class AppVersionLabel extends HookConsumerWidget {
-  const AppVersionLabel({super.key});
+class CountryNode {
+  CountryNode({
+    required this.name,
+    required this.code,
+    required this.flag,
+    required this.pingMs,
+  });
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translationsProvider).requireValue;
-    final theme = Theme.of(context);
+  final String name;
+  final String code;
+  final String flag;
+  final int pingMs;
 
-    final version = ref.watch(appInfoProvider).requireValue.presentVersion;
-    if (version.isBlank) return const SizedBox();
+  String get key => code.toLowerCase().isNotEmpty ? code.toLowerCase() : name.toLowerCase();
 
-    return Semantics(
-      label: t.common.version,
-      button: false,
-      child: Container(
-        decoration: BoxDecoration(color: theme.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(4)),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        child: Text(
-          version,
-          textDirection: TextDirection.ltr,
-          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
-        ),
-      ),
-    );
+  factory CountryNode.fromApi(Map<String, dynamic> json) {
+    final name = (json['name'] ?? json['country'] ?? json['title'] ?? 'Unknown').toString();
+    final code = (json['code'] ?? json['country_code'] ?? json['iso'] ?? '').toString();
+    final pingRaw = json['ping'] ?? json['latency'] ?? 0;
+    final ping = int.tryParse(pingRaw.toString()) ?? 0;
+    final flag = (json['flag']?.toString().isNotEmpty ?? false) ? json['flag'].toString() : _flagFromCode(code);
+    return CountryNode(name: name, code: code, flag: flag, pingMs: ping);
+  }
+
+  static String _flagFromCode(String code) {
+    final upper = code.toUpperCase();
+    if (upper.length != 2) return '🌍';
+    const int base = 127397;
+    final int first = upper.codeUnitAt(0) + base;
+    final int second = upper.codeUnitAt(1) + base;
+    return String.fromCharCodes([first, second]);
   }
 }

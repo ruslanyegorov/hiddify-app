@@ -33,6 +33,7 @@ dependencies:
   rxdart: ^0.28.0
   drift: ^2.21.0
   drift_flutter: ^0.2.1
+  http: ^1.5.0
   shared_preferences: ^2.5.2
   # shared_preferences_android: ^2.4.8
   dio: ^5.4.1
@@ -157,6 +158,8 @@ flutter:
     # - assets/core/geoip.db
     # - assets/core/geosite.db
     - assets/images/logo.svg
+    - assets/images/logo.png
+    - assets/images/logo-2.png
     - assets/images/tray_icon.ico
     - assets/images/tray_icon.png
     - assets/images/tray_icon_dark.ico
