@@ -330,7 +330,7 @@ class _KolobokHomePageState extends State<KolobokHomePage> {
                   if (_cityLabel(loc).isNotEmpty)
                     Text(
                       _cityLabel(loc),
-                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF333333)),
                     ),
                 ],
               ),
@@ -384,7 +384,7 @@ class _KolobokHomePageState extends State<KolobokHomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF333333))),
                 Text(
                   value,
                   style: const TextStyle(

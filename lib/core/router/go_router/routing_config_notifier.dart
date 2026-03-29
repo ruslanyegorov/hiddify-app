@@ -9,6 +9,7 @@ import 'package:hiddify/core/router/go_router/refresh_listenable.dart';
 import 'package:hiddify/features/about/widget/about_page.dart';
 import 'package:hiddify/features/home/widget/home_page.dart';
 import 'package:hiddify/features/intro/widget/intro_page.dart';
+import 'package:hiddify/features/kolobok/splash_screen.dart';
 import 'package:hiddify/features/log/overview/logs_page.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_page.dart';
 import 'package:hiddify/features/profile/details/profile_details_page.dart';
@@ -38,7 +39,10 @@ final branchesScope = <String, FocusScopeNode>{
 
 // when the routing config is not yet initialized, this config is used
 final loadingConfig = RoutingConfig(
-  routes: <RouteBase>[GoRoute(path: '/home', builder: (context, state) => const Material())],
+  routes: <RouteBase>[
+    GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+    GoRoute(path: '/home', builder: (context, state) => const Material()),
+  ],
 );
 
 String getNameOfBranch(bool isMobileBreakpoint, bool showProfilesAction, int index) => isMobileBreakpoint
@@ -65,6 +69,7 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
       redirect: (context, state) {
         final introCompleted = ref.read(Preferences.introCompleted);
         final isIntro = state.matchedLocation == '/intro';
+        final isSplash = state.matchedLocation == '/splash';
         // fix path-parameters for deep link
         String? url;
         if (LinkParser.protocols.contains(state.uri.scheme)) {
@@ -77,12 +82,16 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
         }
 
         if (!introCompleted) {
+          if (isSplash) {
+            return null;
+          }
           return url != null ? '/intro?url=$url' : '/intro';
         } else if (isIntro) {
-          if (url != null)
+          if (url != null) {
             WidgetsBinding.instance.addPostFrameCallback(
               (_) => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(url: url),
             );
+          }
           return '/home';
         } else if (url != null) {
           WidgetsBinding.instance.addPostFrameCallback(
@@ -93,11 +102,14 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
         return null;
       },
       routes: <RouteBase>[
+        GoRoute(
+          name: 'splash',
+          path: '/splash',
+          builder: (_, state) => const SplashScreen(),
+        ),
         StatefulShellRoute.indexedStack(
           builder: (_, _, navigationShell) => MyAdaptiveLayout(
             navigationShell: navigationShell,
-            isMobileBreakpoint: isMobileBreakpoint,
-            showProfilesAction: showProfilesAction,
           ),
           branches: <StatefulShellBranch>[
             StatefulShellBranch(

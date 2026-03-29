@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/kolobok/api_service.dart';
+import 'package:hiddify/features/kolobok/language_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 class KolobokProfilePage extends ConsumerStatefulWidget {
@@ -25,6 +26,9 @@ class _KolobokProfilePageState extends ConsumerState<KolobokProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = ref.watch(kolobokLanguageProvider);
+    final ru = lang != 'en';
+
     return FutureBuilder<Map<String, dynamic>>(
       future: _profileFuture,
       builder: (context, snapshot) {
@@ -32,13 +36,18 @@ class _KolobokProfilePageState extends ConsumerState<KolobokProfilePage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Ошибка: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              ru ? 'Ошибка: ${snapshot.error}' : 'Error: ${snapshot.error}',
+              style: const TextStyle(color: Color(0xFF333333)),
+              textAlign: TextAlign.center,
+            ),
+          );
         }
         final raw = snapshot.data!;
         final user = (raw['user'] is Map) ? (raw['user'] as Map).cast<String, dynamic>() : raw;
         final username = user['username']?.toString() ?? user['name']?.toString() ?? '-';
         final email = user['email']?.toString() ?? '-';
-        final referral = user['referral_link']?.toString() ?? user['referral']?.toString() ?? '-';
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -47,18 +56,53 @@ class _KolobokProfilePageState extends ConsumerState<KolobokProfilePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Профиль', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    ru ? 'Профиль' : 'Profile',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  Text('Имя: $username'),
+                  Text(
+                    ru ? 'Имя: $username' : 'Name: $username',
+                    style: const TextStyle(color: Color(0xFF333333)),
+                  ),
                   const SizedBox(height: 4),
-                  Text('Email: $email'),
-                  const SizedBox(height: 10),
-                  Text('Реферальная ссылка:\n$referral'),
+                  Text('Email: $email', style: const TextStyle(color: Color(0xFF333333))),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton.tonal(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  ru ? 'Язык' : 'Language',
+                  style: const TextStyle(color: Color(0xFF333333)),
+                ),
+                DropdownButton<String>(
+                  value: lang == 'en' ? 'en' : 'ru',
+                  style: const TextStyle(color: Color(0xFF333333), fontSize: 16),
+                  dropdownColor: Colors.white,
+                  items: const [
+                    DropdownMenuItem(value: 'ru', child: Text('Русский', style: TextStyle(color: Color(0xFF333333)))),
+                    DropdownMenuItem(value: 'en', child: Text('English', style: TextStyle(color: Color(0xFF333333)))),
+                  ],
+                  onChanged: (val) async {
+                    if (val == null) return;
+                    await ref.read(kolobokLanguageProvider.notifier).setLanguage(val);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF5A623),
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 await widget.apiService.clearToken();
                 if (ref.read(connectionNotifierProvider).value == const Connected()) {
@@ -67,7 +111,7 @@ class _KolobokProfilePageState extends ConsumerState<KolobokProfilePage> {
                 if (!mounted) return;
                 widget.onLogout();
               },
-              child: const Text('Выйти'),
+              child: Text(ru ? 'Выйти' : 'Log out'),
             ),
           ],
         );

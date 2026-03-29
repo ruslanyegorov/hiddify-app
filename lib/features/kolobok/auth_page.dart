@@ -5,9 +5,11 @@ import 'package:hiddify/features/kolobok/api_service.dart';
 const Color _kAccent = Color(0xFFF5A623);
 const Color _kBorder = Color(0xFFE0E0E0);
 const TextStyle _kFieldLabelStyle = TextStyle(
-  color: Color(0xFF666666),
+  color: Color(0xFF333333),
   fontSize: 14,
 );
+
+const TextStyle _kFieldInputStyle = TextStyle(color: Color(0xFF1A1A2E));
 
 const String _kTrialWelcomeMessage = '🎉 Добро пожаловать! У вас 7 дней бесплатного доступа';
 
@@ -67,14 +69,13 @@ class _AuthPageState extends State<AuthPage> {
   Widget _logoHeader() {
     return Column(
       children: [
-        const SizedBox(height: 60),
         Image.asset(
           'assets/images/logo.png',
           width: double.infinity,
-          height: 260,
+          height: 320,
           fit: BoxFit.contain,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -104,20 +105,20 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Widget _orDivider() {
-    return Row(
+    return const Row(
       children: [
-        const Expanded(child: Divider(color: _kBorder, thickness: 1)),
+        Expanded(child: Divider(color: _kBorder, thickness: 1)),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'Или войти через',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: Color(0xFF333333),
               fontSize: 14,
             ),
           ),
         ),
-        const Expanded(child: Divider(color: _kBorder, thickness: 1)),
+        Expanded(child: Divider(color: _kBorder, thickness: 1)),
       ],
     );
   }
@@ -185,7 +186,7 @@ class _AuthPageState extends State<AuthPage> {
       onPressed: onToggle,
       icon: Icon(
         obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-        color: Colors.grey.shade600,
+        color: const Color(0xFF333333),
       ),
     );
   }
@@ -279,22 +280,28 @@ class _AuthPageState extends State<AuthPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F0),
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                 _logoHeader(),
                 _title(_isLogin ? 'Войти' : 'Регистрация'),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
                 if (!_isLogin) ...[
                   const Text('Полное имя', style: _kFieldLabelStyle),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _fullNameController,
+                    style: _kFieldInputStyle,
                     textInputAction: TextInputAction.next,
                     decoration: _inputDecoration(),
                     validator: _validateFullName,
@@ -305,6 +312,7 @@ class _AuthPageState extends State<AuthPage> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _emailController,
+                  style: _kFieldInputStyle,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
@@ -316,6 +324,7 @@ class _AuthPageState extends State<AuthPage> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _passwordController,
+                  style: _kFieldInputStyle,
                   obscureText: _obscurePassword,
                   textInputAction: _isLogin ? TextInputAction.done : TextInputAction.next,
                   decoration: _inputDecoration(
@@ -341,6 +350,7 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _confirmPasswordController,
+                    style: _kFieldInputStyle,
                     obscureText: _obscureConfirm,
                     textInputAction: TextInputAction.done,
                     decoration: _inputDecoration(
@@ -367,9 +377,9 @@ class _AuthPageState extends State<AuthPage> {
                           child: Wrap(
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Text(
+                              const Text(
                                 'Я согласен с ',
-                                style: TextStyle(color: Colors.grey.shade800, fontSize: 14),
+                                style: TextStyle(color: Color(0xFF333333), fontSize: 14),
                               ),
                               GestureDetector(
                                 onTap: _showComingSoonSnackBar,
@@ -382,9 +392,9 @@ class _AuthPageState extends State<AuthPage> {
                                   ),
                                 ),
                               ),
-                              Text(
+                              const Text(
                                 ' и ',
-                                style: TextStyle(color: Colors.grey.shade800, fontSize: 14),
+                                style: TextStyle(color: Color(0xFF333333), fontSize: 14),
                               ),
                               GestureDetector(
                                 onTap: _showComingSoonSnackBar,
@@ -445,18 +455,18 @@ class _AuthPageState extends State<AuthPage> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 12),
                 _orDivider(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 _socialRow(),
-                const SizedBox(height: 32),
+                const SizedBox(height: 12),
                 if (_isLogin) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         'Нет аккаунта?',
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
+                        style: TextStyle(color: Color(0xFF333333), fontSize: 15),
                       ),
                       TextButton(
                         onPressed: () => setState(() {
@@ -476,9 +486,9 @@ class _AuthPageState extends State<AuthPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         'Уже есть аккаунт?',
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
+                        style: TextStyle(color: Color(0xFF333333), fontSize: 15),
                       ),
                       TextButton(
                         onPressed: () => setState(() {
@@ -495,9 +505,11 @@ class _AuthPageState extends State<AuthPage> {
                     ],
                   ),
                 ],
-              ],
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

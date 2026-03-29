@@ -80,7 +80,7 @@ class _LocationSheetState extends State<LocationSheet> {
                   onChanged: (v) => setState(() => _query = v),
                   decoration: InputDecoration(
                     hintText: 'Поиск',
-                    prefixIcon: const Icon(Icons.search, color: Color(0xFF888888)),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF333333)),
                     filled: true,
                     fillColor: _kSearchFill,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -136,7 +136,7 @@ class _LocationSheetState extends State<LocationSheet> {
                                         city,
                                         style: TextStyle(
                                           fontSize: 13,
-                                          color: selected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF888888),
+                                          color: selected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF333333),
                                         ),
                                       ),
                                     ],
