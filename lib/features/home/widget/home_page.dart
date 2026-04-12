@@ -13,6 +13,7 @@ import 'package:hiddify/features/kolobok/location_page.dart';
 import 'package:hiddify/features/kolobok/profile_page.dart';
 import 'package:hiddify/features/kolobok/settings_screen.dart';
 import 'package:hiddify/features/kolobok/subscription_page.dart';
+import 'package:hiddify/features/kolobok/update_service.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
@@ -357,6 +358,9 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
   void initState() {
     super.initState();
     _dataFuture = _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) UpdateService.checkAndPrompt(context, widget.apiService);
+    });
   }
 
   @override

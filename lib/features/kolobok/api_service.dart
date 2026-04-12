@@ -90,6 +90,10 @@ class ApiService {
     return _extractList(data);
   }
 
+  Future<Map<String, dynamic>> checkVersion() {
+    return _get('/api/v1/version');
+  }
+
   Future<Map<String, dynamic>> activatePlan(String planId) {
     return _post('/api/v1/subscription/activate/$planId', auth: true);
   }

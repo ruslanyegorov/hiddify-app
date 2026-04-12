@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Flutter App (Android/Device)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "--debug", "lib/main.dart"],
+      "port": 8080
+    },
+    {
+      "name": "Flutter App (Web / Chrome)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "chrome", "--web-port", "8080", "lib/main.dart"],
+      "port": 8080
+    },
+    {
+      "name": "Flutter App (Windows)",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "-d", "windows", "--debug", "lib/main.dart"],
+      "port": 8080
+    },
+    {
+      "name": "Flutter App — Release mode",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": ["run", "--release", "lib/main.dart"],
+      "port": 8080
+    },
+    {
+      "name": "Code Generation (build_runner)",
+      "runtimeExecutable": "dart",
+      "runtimeArgs": ["run", "build_runner", "build", "--delete-conflicting-outputs"],
+      "port": 8080
+    }
+  ]
+}
