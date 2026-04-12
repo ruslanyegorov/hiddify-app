@@ -37,12 +37,18 @@ class _AuthPageState extends State<AuthPage> {
   bool _obscureConfirm = true;
   bool _termsAccepted = false;
 
+  // Email verification state
+  bool _awaitingVerification = false;
+  String _pendingEmail = '';
+  final _codeController = TextEditingController();
+
   @override
   void dispose() {
     _emailController.dispose();
     _fullNameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -248,26 +254,49 @@ class _AuthPageState extends State<AuthPage> {
     });
     try {
       final email = _emailController.text.trim();
-      final registered = !_isLogin;
       if (_isLogin) {
         await _api.login(email: email, password: _passwordController.text);
+        if (!mounted) return;
+        widget.onAuthenticated();
       } else {
         await _api.register(
           email: email,
           username: _usernameFromEmail(email),
           password: _passwordController.text,
         );
-        await _api.login(email: email, password: _passwordController.text);
+        if (!mounted) return;
+        // После регистрации — переходим к экрану верификации email
+        setState(() {
+          _awaitingVerification = true;
+          _pendingEmail = email;
+        });
       }
+    } catch (e) {
+      setState(() => _errorText = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _verifyCode() async {
+    final code = _codeController.text.trim();
+    if (code.length != 6) {
+      setState(() => _errorText = 'Введите 6-значный код');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _errorText = null;
+    });
+    try {
+      await _api.verifyEmail(email: _pendingEmail, code: code);
       if (!mounted) return;
-      if (registered) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(_kTrialWelcomeMessage),
-            duration: Duration(seconds: 5),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(_kTrialWelcomeMessage),
+          duration: Duration(seconds: 5),
+        ),
+      );
       widget.onAuthenticated();
     } catch (e) {
       setState(() => _errorText = e.toString().replaceFirst('Exception: ', ''));
@@ -276,8 +305,24 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _resendCode() async {
+    setState(() => _errorText = null);
+    try {
+      await _api.resendCode(email: _pendingEmail);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Код отправлен повторно')),
+      );
+    } catch (e) {
+      setState(() => _errorText = e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_awaitingVerification) {
+      return _buildVerificationScreen();
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F0),
       resizeToAvoidBottomInset: false,
@@ -510,6 +555,95 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerificationScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F0),
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _logoHeader(),
+              _title('Подтвердите email'),
+              const SizedBox(height: 8),
+              Text(
+                'Код отправлен на $_pendingEmail',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF666666), fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              const Text('Код подтверждения', style: _kFieldLabelStyle),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _codeController,
+                style: _kFieldInputStyle,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                decoration: _inputDecoration().copyWith(
+                  hintText: '000000',
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_errorText != null) ...[
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _verifyCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kAccent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _kAccent.withValues(alpha: 0.6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Подтвердить',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _loading ? null : _resendCode,
+                style: TextButton.styleFrom(foregroundColor: _kAccent),
+                child: const Text('Отправить код повторно'),
+              ),
+              TextButton(
+                onPressed: () => setState(() {
+                  _awaitingVerification = false;
+                  _errorText = null;
+                  _codeController.clear();
+                }),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF666666)),
+                child: const Text('← Назад'),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Expand-Archive -Path 'C:\\\\Users\\\\r2d2\\\\Documents\\\\BACKUP-KOLOBOK_VPN\\\\kolobok-backend-master.zip' -DestinationPath 'C:\\\\Users\\\\r2d2\\\\AppData\\\\Local\\\\Temp\\\\kolobok-backend' -Force; ls 'C:\\\\Users\\\\r2d2\\\\AppData\\\\Local\\\\Temp\\\\kolobok-backend'\")",
+      "Bash(powershell.exe -Command \"Expand-Archive -Path 'C:\\\\\\\\Users\\\\\\\\r2d2\\\\\\\\Documents\\\\\\\\BACKUP-KOLOBOK_VPN\\\\\\\\kolobok-backend-master.zip' -DestinationPath 'C:\\\\\\\\Users\\\\\\\\r2d2\\\\\\\\Documents\\\\\\\\BACKUP-KOLOBOK_VPN\\\\\\\\kolobok-backend' -Force; Get-ChildItem -Recurse 'C:\\\\\\\\Users\\\\\\\\r2d2\\\\\\\\Documents\\\\\\\\BACKUP-KOLOBOK_VPN\\\\\\\\kolobok-backend' | Select-Object FullName | Format-List\")",
+      "WebFetch(domain:www.figma.com)"
+    ]
+  }
+}

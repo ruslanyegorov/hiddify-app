@@ -1,17 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hiddify/features/connection/model/connection_status.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
-import 'package:hiddify/features/home/widget/dns_lookup_latency.dart';
+import 'package:hiddify/features/kolobok/about_screen.dart';
 import 'package:hiddify/features/kolobok/api_service.dart';
 import 'package:hiddify/features/kolobok/auth_page.dart';
+import 'package:hiddify/features/kolobok/help_screen.dart';
 import 'package:hiddify/features/kolobok/language_notifier.dart';
+import 'package:hiddify/features/kolobok/location_page.dart';
 import 'package:hiddify/features/kolobok/profile_page.dart';
+import 'package:hiddify/features/kolobok/settings_screen.dart';
 import 'package:hiddify/features/kolobok/subscription_page.dart';
 import 'package:hiddify/features/profile/data/profile_data_providers.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+const Color _kAccent = Color(0xFFF5A623);
+const Color _kBg = Color(0xFFF5F5F0);
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -20,14 +28,9 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-const Color _kKolobokAccent = Color(0xFFF5A623);
-const Color _kKolobokBackground = Color(0xFFF5F5F0);
-
 class _HomePageState extends ConsumerState<HomePage> {
   final ApiService _api = ApiService();
   int _tabIndex = 0;
-  String? _selectedCountryKey;
-  final Map<String, String> _countryProfileId = <String, String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -55,162 +58,300 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget _buildMainShell() {
     final lang = ref.watch(kolobokLanguageProvider);
     final ru = lang != 'en';
+
     return Scaffold(
-      backgroundColor: _kKolobokBackground,
+      backgroundColor: _kBg,
+      drawer: _KolobokDrawer(
+        apiService: _api,
+        ru: ru,
+        currentTab: _tabIndex,
+        onNavigate: (tab) => setState(() => _tabIndex = tab),
+      ),
       appBar: AppBar(
-        backgroundColor: _kKolobokBackground,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Image.asset(
-          'assets/images/logo-2.png',
-          height: 40,
-          fit: BoxFit.contain,
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu_rounded, color: Color(0xFF333333), size: 26),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
         ),
+        title: Image.asset('assets/images/logo-2.png', height: 36, fit: BoxFit.contain),
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFF222222)),
+        actions: [
+          GestureDetector(
+            onTap: () => setState(() => _tabIndex = 1),
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: _kAccent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 20),
+            ),
+          ),
+        ],
       ),
       body: IndexedStack(
         index: _tabIndex,
         children: [
-          _HomeTab(
-            apiService: _api,
-            selectedCountryKey: _selectedCountryKey,
-            onCountrySelected: _onCountrySelected,
-          ),
+          _HomeTab(apiService: _api),
           SubscriptionPage(apiService: _api),
           KolobokProfilePage(
             apiService: _api,
             onLogout: () {
               if (!mounted) return;
-              setState(() {
-                _tabIndex = 0;
-                _selectedCountryKey = null;
-                _countryProfileId.clear();
-              });
+              setState(() => _tabIndex = 0);
             },
+            onGoToPremium: () => setState(() => _tabIndex = 1),
           ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
-        onDestinationSelected: (value) => setState(() => _tabIndex = value),
+        onDestinationSelected: (v) => setState(() => _tabIndex = v),
         backgroundColor: Colors.white,
-        indicatorColor: _kKolobokAccent.withValues(alpha: 0.2),
+        indicatorColor: _kAccent.withValues(alpha: 0.15),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.home_outlined, color: Color(0xFF333333)),
-            selectedIcon: const Icon(Icons.home, color: _kKolobokAccent),
+            icon: const Icon(Icons.home_outlined, color: Color(0xFF888888)),
+            selectedIcon: const Icon(Icons.home_rounded, color: _kAccent),
             label: ru ? 'Главная' : 'Home',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.card_membership_outlined, color: Color(0xFF333333)),
-            selectedIcon: const Icon(Icons.card_membership, color: _kKolobokAccent),
+            icon: const Icon(Icons.workspace_premium_outlined, color: Color(0xFF888888)),
+            selectedIcon: const Icon(Icons.workspace_premium_rounded, color: _kAccent),
             label: ru ? 'Подписка' : 'Subscription',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.person_outline, color: Color(0xFF333333)),
-            selectedIcon: const Icon(Icons.person, color: _kKolobokAccent),
+            icon: const Icon(Icons.person_outline_rounded, color: Color(0xFF888888)),
+            selectedIcon: const Icon(Icons.person_rounded, color: _kAccent),
             label: ru ? 'Профиль' : 'Profile',
           ),
         ],
       ),
     );
   }
-
-  Future<void> _onCountrySelected(CountryNode node, String vlessConfig) async {
-    final countryKey = node.key;
-    _selectedCountryKey = countryKey;
-    setState(() {});
-
-    String? profileId = _countryProfileId[countryKey];
-    if (profileId == null) {
-      final before = await ref.read(profilesNotifierProvider.future);
-      final beforeIds = before.map((e) => e.id).toSet();
-      final repo = await ref.read(profileRepositoryProvider.future);
-      final result = await repo.addLocal(vlessConfig).run();
-      if (result.isLeft()) return;
-      final after = await ref.read(profilesNotifierProvider.future);
-      final created = after.where((e) => !beforeIds.contains(e.id)).toList();
-      if (created.isNotEmpty) {
-        profileId = created.first.id;
-        _countryProfileId[countryKey] = profileId;
-      }
-    }
-    if (profileId == null) return;
-
-    await ref.read(profilesNotifierProvider.notifier).selectActiveProfile(profileId);
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-
-    final status = ref.read(connectionNotifierProvider).valueOrNull;
-    if (status == const Connected()) {
-      final profile = await ref.read(activeProfileProvider.future);
-      await ref.read(connectionNotifierProvider.notifier).reconnect(profile);
-    } else if (status == const Disconnected()) {
-      await ref.read(connectionNotifierProvider.notifier).mayConnect();
-    }
-  }
 }
 
-class _ConnectionStatusCaption extends ConsumerWidget {
-  const _ConnectionStatusCaption();
+// ─────────────────── Sidebar Drawer ───────────────────
 
-  static String _label(AsyncValue<ConnectionStatus> a, bool ru) {
-    return switch (a) {
-      AsyncData(value: Disconnected()) => ru ? 'Нажмите для подключения' : 'Tap to Connect',
-      AsyncData(value: Connecting()) => ru ? 'Подключение...' : 'Connecting...',
-      AsyncData(value: Connected()) => ru ? 'Подключено' : 'Connected',
-      AsyncData(value: Disconnecting()) => ru ? 'Подключение...' : 'Connecting...',
-      _ => ru ? 'Нажмите для подключения' : 'Tap to Connect',
-    };
+class _KolobokDrawer extends ConsumerStatefulWidget {
+  const _KolobokDrawer({
+    required this.apiService,
+    required this.ru,
+    required this.currentTab,
+    required this.onNavigate,
+  });
+
+  final ApiService apiService;
+  final bool ru;
+  final int currentTab;
+  final void Function(int tab) onNavigate;
+
+  @override
+  ConsumerState<_KolobokDrawer> createState() => _KolobokDrawerState();
+}
+
+class _KolobokDrawerState extends ConsumerState<_KolobokDrawer> {
+  String _username = '';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.apiService.getProfile().then((data) {
+      final user = (data['user'] is Map) ? (data['user'] as Map).cast<String, dynamic>() : data;
+      if (!mounted) return;
+      setState(() {
+        _username = user['username']?.toString() ?? user['name']?.toString() ?? '';
+      });
+    }).catchError((_) {});
   }
 
-  static Color _color(AsyncValue<ConnectionStatus> a) {
-    return switch (a) {
-      AsyncData(value: Disconnected()) => const Color(0xFF666666),
-      AsyncData(value: Connecting()) => _kKolobokAccent,
-      AsyncData(value: Connected()) => const Color(0xFF4CAF50),
-      AsyncData(value: Disconnecting()) => _kKolobokAccent,
-      _ => const Color(0xFF666666),
-    };
+  void _go(int tab) {
+    Navigator.pop(context);
+    widget.onNavigate(tab);
+  }
+
+  void _push(Widget screen) {
+    Navigator.pop(context);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(connectionNotifierProvider);
-    final ru = ref.watch(kolobokLanguageProvider) != 'en';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Text(
-        _label(async, ru),
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 16,
-          color: _color(async),
+  Widget build(BuildContext context) {
+    final ru = widget.ru;
+
+    return Drawer(
+      width: MediaQuery.sizeOf(context).width * 0.78,
+      child: Container(
+        color: _kAccent,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ru ? 'Привет,' : 'Hello,',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      _username.isNotEmpty ? _username : (ru ? 'Пользователь' : 'User'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              _DrawerItem(
+                icon: Icons.home_rounded,
+                label: ru ? 'Главная' : 'Home',
+                selected: widget.currentTab == 0,
+                onTap: () => _go(0),
+              ),
+              _DrawerItem(
+                icon: Icons.person_rounded,
+                label: ru ? 'Мой аккаунт' : 'My Account',
+                selected: widget.currentTab == 2,
+                onTap: () => _go(2),
+              ),
+              _DrawerItem(
+                icon: Icons.workspace_premium_rounded,
+                label: ru ? 'Подписка' : 'Subscription',
+                selected: widget.currentTab == 1,
+                onTap: () => _go(1),
+              ),
+              _DrawerItem(
+                icon: Icons.settings_rounded,
+                label: ru ? 'Настройки' : 'Settings',
+                selected: false,
+                onTap: () => _push(const KolobokSettingsScreen()),
+              ),
+              _DrawerItem(
+                icon: Icons.help_outline_rounded,
+                label: ru ? 'Помощь' : 'Help',
+                selected: false,
+                onTap: () => _push(KolobokHelpScreen(ru: ru)),
+              ),
+              _DrawerItem(
+                icon: Icons.info_outline_rounded,
+                label: ru ? 'О приложении' : 'About Us',
+                selected: false,
+                onTap: () => _push(KolobokAboutScreen(ru: ru)),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _go(1),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kAccent,
+                      backgroundColor: Colors.white,
+                      side: BorderSide.none,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: const Icon(Icons.workspace_premium_rounded, size: 20),
+                    label: Text(
+                      ru ? 'Перейти к Premium' : 'Go to Premium',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _HomeTab extends ConsumerStatefulWidget {
-  const _HomeTab({
-    required this.apiService,
-    required this.selectedCountryKey,
-    required this.onCountrySelected,
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
   });
 
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: selected ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.white, size: 22),
+        title: Text(
+          label,
+          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+// ─────────────────── Home Tab ───────────────────
+
+class _HomeTab extends ConsumerStatefulWidget {
+  const _HomeTab({required this.apiService});
+
   final ApiService apiService;
-  final String? selectedCountryKey;
-  final Future<void> Function(CountryNode node, String vlessConfig) onCountrySelected;
 
   @override
   ConsumerState<_HomeTab> createState() => _HomeTabState();
 }
 
 class _HomeTabState extends ConsumerState<_HomeTab> {
-  late Future<({List<CountryNode> nodes, Map<String, String> configs})> _dataFuture;
+  late Future<_HomeData> _dataFuture;
+  LocationItem? _selectedLocation;
+  final Map<String, String> _profileIdByKey = {};
   bool _actionLoading = false;
+
+  // Connection timer
+  DateTime? _connectedAt;
+  Timer? _ticker;
+  String _timerLabel = '00:00:00';
+
+  // Disconnect banner
+  bool _showDisconnectedBanner = false;
 
   @override
   void initState() {
@@ -219,162 +360,52 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final ru = ref.watch(kolobokLanguageProvider) != 'en';
-    return FutureBuilder<({List<CountryNode> nodes, Map<String, String> configs})>(
-      future: _dataFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                ru ? 'Ошибка загрузки: ${snapshot.error}' : 'Loading error: ${snapshot.error}',
-                style: const TextStyle(color: Color(0xFFC62828)),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-        final nodes = snapshot.data!.nodes;
-        final configs = snapshot.data!.configs;
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final h = constraints.maxHeight;
-            return RefreshIndicator(
-              color: _kKolobokAccent,
-              onRefresh: () async {
-                setState(() => _dataFuture = _load());
-                await _dataFuture;
-              },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: SizedBox(
-                  height: h > 0 ? h : MediaQuery.sizeOf(context).height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Positioned.fill(
-                        child: Opacity(
-                          opacity: 0.3,
-                          child: Image.asset(
-                            'assets/images/world_map.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Expanded(
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ConnectionButton(),
-                                  SizedBox(height: 16),
-                                  _ConnectionStatusCaption(),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: double.infinity,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF5A623),
-                              borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
-                            ),
-                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  ru ? 'Выберите страну' : 'Select country',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(maxHeight: h > 0 ? h * 0.42 : 280),
-                                  child: ListView.separated(
-                                    shrinkWrap: true,
-                                    physics: const ClampingScrollPhysics(),
-                                    itemCount: nodes.length,
-                                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                                    itemBuilder: (context, index) {
-                                      final node = nodes[index];
-                                      final selected = node.key == widget.selectedCountryKey;
-                                      return _CountryCard(
-                                        node: node,
-                                        selected: selected,
-                                        loading: _actionLoading,
-                                        onTap: () async {
-                                          final config = configs[node.key];
-                                          if (config == null || config.isEmpty) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                backgroundColor: Colors.white,
-                                                content: Text(
-                                                  'Нет конфига для страны ${node.name}',
-                                                  style: const TextStyle(color: Color(0xFF333333)),
-                                                ),
-                                              ),
-                                            );
-                                            return;
-                                          }
-                                          setState(() => _actionLoading = true);
-                                          try {
-                                            await widget.onCountrySelected(node, config);
-                                          } finally {
-                                            if (mounted) setState(() => _actionLoading = false);
-                                          }
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
-  Future<({List<CountryNode> nodes, Map<String, String> configs})> _load() async {
+  Future<_HomeData> _load() async {
+    String subStatus = 'none';
     try {
-      await widget.apiService.activatePlan('1');
+      final sub = await widget.apiService.getSubscription();
+      subStatus = sub['status']?.toString() ?? 'none';
     } catch (_) {}
+
     final rawCountries = await widget.apiService.getCountries();
     final rawConfigs = await widget.apiService.getSubscriptionConfigs();
-    final nodes = rawCountries.map((e) => CountryNode.fromApi(e)).toList();
+
+    final locations = rawCountries.map((e) => _locationFromApi(e)).toList();
     final configs = _parseConfigs(rawConfigs);
-    return (nodes: nodes, configs: configs);
+    return _HomeData(locations: locations, configs: configs, subscriptionStatus: subStatus);
+  }
+
+  LocationItem _locationFromApi(Map<String, dynamic> json) {
+    final name = (json['name'] ?? json['country'] ?? 'Unknown').toString();
+    final code = (json['code'] ?? json['country_code'] ?? '').toString();
+    final pingRaw = json['ping'] ?? json['latency'] ?? 0;
+    final ping = int.tryParse(pingRaw.toString()) ?? 0;
+    final flagRaw = json['flag_emoji'] ?? json['flag'];
+    final flag = (flagRaw != null && flagRaw.toString().isNotEmpty)
+        ? flagRaw.toString()
+        : _flagFromCode(code);
+    return LocationItem(name: name, code: code, flag: flag, pingMs: ping);
+  }
+
+  static String _flagFromCode(String code) {
+    final upper = code.toUpperCase();
+    if (upper.length != 2) return '🌍';
+    const base = 127397;
+    return String.fromCharCodes([upper.codeUnitAt(0) + base, upper.codeUnitAt(1) + base]);
   }
 
   Map<String, String> _parseConfigs(Map<String, dynamic> raw) {
     final result = <String, String>{};
     final dynamic source = raw['data'] ?? raw['configs'] ?? raw['items'] ?? raw;
     if (source is Map) {
-      for (final entry in source.entries) {
-        if (entry.value == null) continue;
-        result[entry.key.toString().toLowerCase()] = entry.value.toString();
+      for (final e in source.entries) {
+        if (e.value == null) continue;
+        result[e.key.toString().toLowerCase()] = e.value.toString();
       }
     } else if (source is List) {
       for (final dynamic item in source) {
@@ -383,120 +414,488 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
         var key = '';
         final nested = map['node'];
         if (nested is Map) {
-          final n = Map<String, dynamic>.from(nested);
-          key = (n['country_code'] ?? '').toString().toLowerCase();
+          key = (Map<String, dynamic>.from(nested)['country_code'] ?? '').toString().toLowerCase();
         }
         if (key.isEmpty) {
-          key = (map['country_code'] ?? map['code'] ?? map['country'] ?? map['name'] ?? '').toString().toLowerCase();
+          key = (map['country_code'] ?? map['code'] ?? map['country'] ?? '').toString().toLowerCase();
         }
-        final config = (map['vless_link'] ?? map['config'] ?? map['vless'] ?? map['url'] ?? '').toString();
-        if (key.isNotEmpty && config.isNotEmpty) {
-          result[key] = config;
-        }
+        final config = (map['vless_link'] ?? map['config'] ?? map['vless'] ?? '').toString();
+        if (key.isNotEmpty && config.isNotEmpty) result[key] = config;
       }
     }
     return result;
   }
-}
 
-class _CountryCard extends StatefulWidget {
-  const _CountryCard({
-    required this.node,
-    required this.selected,
-    required this.loading,
-    required this.onTap,
-  });
-
-  final CountryNode node;
-  final bool selected;
-  final bool loading;
-  final VoidCallback onTap;
-
-  @override
-  State<_CountryCard> createState() => _CountryCardState();
-}
-
-class _CountryCardState extends State<_CountryCard> {
-  int? _lookupMs;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.node.pingMs > 0) {
-      return;
-    }
-    measureDnsLookupLatencyMs().then((ms) {
+  void _startTimer() {
+    _connectedAt = DateTime.now();
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() => _lookupMs = ms);
+      final elapsed = DateTime.now().difference(_connectedAt!);
+      final h = elapsed.inHours.toString().padLeft(2, '0');
+      final m = (elapsed.inMinutes % 60).toString().padLeft(2, '0');
+      final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+      setState(() => _timerLabel = '$h:$m:$s');
     });
   }
 
-  @override
-  void didUpdateWidget(covariant _CountryCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.node.key != widget.node.key) {
-      _lookupMs = null;
-      if (widget.node.pingMs > 0) {
-        return;
-      }
-      measureDnsLookupLatencyMs().then((ms) {
-        if (!mounted) return;
-        setState(() => _lookupMs = ms);
-      });
-    }
+  void _stopTimer() {
+    _ticker?.cancel();
+    _ticker = null;
+    _connectedAt = null;
+    _timerLabel = '00:00:00';
   }
 
-  Widget? _pingSubtitle() {
-    if (widget.node.pingMs > 0) {
-      return Text(
-        'Пинг: ${widget.node.pingMs} мс',
-        style: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-      );
+  Future<void> _openLocationSheet(
+    List<LocationItem> locations,
+    Map<String, String> configs,
+  ) async {
+    final result = await showModalBottomSheet<LocationItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => LocationSheet(
+        locations: locations,
+        configs: configs,
+        selectedKey: _selectedLocation?.key,
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _selectLocation(result, configs);
+  }
+
+  Future<void> _selectLocation(LocationItem item, Map<String, String> configs) async {
+    setState(() {
+      _selectedLocation = item;
+      _actionLoading = true;
+    });
+
+    try {
+      final config = configs[item.key];
+      if (config == null || config.isEmpty) {
+        setState(() => _actionLoading = false);
+        return;
+      }
+
+      String? profileId = _profileIdByKey[item.key];
+      if (profileId == null) {
+        final before = await ref.read(profilesNotifierProvider.future);
+        final beforeIds = before.map((e) => e.id).toSet();
+        final repo = await ref.read(profileRepositoryProvider.future);
+        final result = await repo.addLocal(config).run();
+        if (result.isLeft()) {
+          setState(() => _actionLoading = false);
+          return;
+        }
+        final after = await ref.read(profilesNotifierProvider.future);
+        final created = after.where((e) => !beforeIds.contains(e.id)).toList();
+        if (created.isNotEmpty) {
+          profileId = created.first.id;
+          _profileIdByKey[item.key] = profileId;
+        }
+      }
+      if (profileId == null) {
+        setState(() => _actionLoading = false);
+        return;
+      }
+
+      await ref.read(profilesNotifierProvider.notifier).selectActiveProfile(profileId);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      final status = ref.read(connectionNotifierProvider).valueOrNull;
+      if (status == const Connected()) {
+        final profile = await ref.read(activeProfileProvider.future);
+        await ref.read(connectionNotifierProvider.notifier).reconnect(profile);
+      } else if (status == const Disconnected()) {
+        await ref.read(connectionNotifierProvider.notifier).mayConnect();
+      }
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
     }
-    final ms = _lookupMs;
-    if (ms != null && ms > 0) {
-      return Text(
-        'Пинг: $ms мс',
-        style: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-      );
-    }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: widget.loading ? null : widget.onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 2),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: widget.selected ? Border.all(color: _kKolobokAccent, width: 2) : null,
-            boxShadow: const [
-              BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 2)),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            leading: Text(widget.node.flag, style: const TextStyle(fontSize: 24)),
-            title: Text(
-              widget.node.name,
-              style: const TextStyle(color: Color(0xFF333333), fontWeight: FontWeight.w600),
+    final ru = ref.watch(kolobokLanguageProvider) != 'en';
+
+    // Listen to connection status for timer and banner
+    ref.listen(connectionNotifierProvider, (prev, next) {
+      final prevStatus = prev?.valueOrNull;
+      final nextStatus = next.valueOrNull;
+      if (nextStatus == const Connected() && prevStatus != const Connected()) {
+        _startTimer();
+        setState(() => _showDisconnectedBanner = false);
+      } else if (nextStatus == const Disconnected() && prevStatus != const Disconnected()) {
+        _stopTimer();
+        setState(() => _showDisconnectedBanner = true);
+        Future<void>.delayed(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _showDisconnectedBanner = false);
+        });
+      }
+    });
+
+    final connStatus = ref.watch(connectionNotifierProvider);
+    final isConnected = connStatus.value == const Connected();
+    final isConnecting = connStatus.value == const Connecting() ||
+        connStatus.value == const Disconnecting();
+
+    return FutureBuilder<_HomeData>(
+      future: _dataFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator(color: _kAccent));
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  ru ? 'Ошибка загрузки' : 'Loading error',
+                  style: const TextStyle(color: Color(0xFFC62828), fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => setState(() => _dataFuture = _load()),
+                  style: ElevatedButton.styleFrom(backgroundColor: _kAccent),
+                  child: Text(ru ? 'Повторить' : 'Retry',
+                      style: const TextStyle(color: Colors.white)),
+                ),
+              ],
             ),
-            subtitle: _pingSubtitle(),
-            trailing: widget.selected
-                ? const Icon(Icons.check_circle, color: _kKolobokAccent)
-                : const Icon(Icons.chevron_right_rounded, color: Color(0xFF333333)),
+          );
+        }
+
+        final data = snapshot.data!;
+        final locations = data.locations;
+        final configs = data.configs;
+        final subStatus = data.subscriptionStatus;
+
+        return Stack(
+          children: [
+            // World map background
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.25,
+                child: Image.asset('assets/images/world_map.png', fit: BoxFit.cover),
+              ),
+            ),
+            Column(
+              children: [
+                // Disconnected banner
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: _showDisconnectedBanner
+                      ? Container(
+                          key: const ValueKey('banner'),
+                          width: double.infinity,
+                          color: const Color(0xFFE8F5E9),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                ru ? 'Успешно отключено' : 'Disconnected from server',
+                                style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('no_banner')),
+                ),
+                // Subscription banner
+                if (subStatus != 'active')
+                  Material(
+                    color: const Color(0xFFFFF3E0),
+                    child: InkWell(
+                      onTap: () {
+                        final homeState = context.findAncestorStateOfType<_HomePageState>();
+                        homeState?.setState(() => homeState._tabIndex = 1);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: _kAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                ru
+                                    ? 'Подписка неактивна. Нажмите для оформления.'
+                                    : 'No active subscription. Tap to subscribe.',
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF5D4037)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Location card
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x12000000), blurRadius: 8, offset: Offset(0, 2)),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: _selectedLocation != null
+                                ? Text(_selectedLocation!.flag, style: const TextStyle(fontSize: 24))
+                                : const Icon(Icons.public_rounded, color: Color(0xFFAAAAAA), size: 24),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedLocation?.name ?? (ru ? 'Лучший сервер' : 'Best Location'),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: _kAccent,
+                                ),
+                              ),
+                              Text(
+                                ru ? 'Быстрый сервер' : 'Fastest Server',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_selectedLocation != null)
+                          _PingBarsSmall(pingMs: _selectedLocation!.pingMs),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Change Location button
+                OutlinedButton.icon(
+                  onPressed: _actionLoading
+                      ? null
+                      : () => _openLocationSheet(locations, configs),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kAccent,
+                    side: const BorderSide(color: _kAccent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  icon: const Icon(Icons.expand_more_rounded, size: 18),
+                  label: Text(ru ? 'Сменить локацию' : 'Change Location'),
+                ),
+
+                // Connected timer + IP
+                if (isConnected)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Column(
+                      children: [
+                        Text(
+                          _timerLabel,
+                          style: const TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            color: _kAccent,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          ru ? 'Время подключения' : 'Session time',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const Spacer(),
+
+                // Power button + orange wave
+                _PowerWave(
+                  ru: ru,
+                  isConnected: isConnected,
+                  isConnecting: isConnecting,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────── Power + Wave area ───────────────────
+
+class _PowerWave extends ConsumerWidget {
+  const _PowerWave({
+    required this.ru,
+    required this.isConnected,
+    required this.isConnecting,
+  });
+
+  final bool ru;
+  final bool isConnected;
+  final bool isConnecting;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      height: 220,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // Orange wave at bottom
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 140,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: _kAccent,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(48)),
+              ),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Text(
+                    isConnected
+                        ? (ru ? 'Подключено' : 'Connected')
+                        : isConnecting
+                            ? (ru ? 'Подключение...' : 'Connecting...')
+                            : (ru ? 'Нажмите для подключения' : 'Tap to Connect'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+          // Concentric circles decoration
+          Positioned(
+            bottom: 60,
+            child: Opacity(
+              opacity: 0.15,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 80,
+            child: Opacity(
+              opacity: 0.1,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+            ),
+          ),
+          // Power button
+          Positioned(
+            top: 0,
+            child: const ConnectionButton(),
+          ),
+        ],
       ),
     );
   }
 }
+
+// ─────────────────── Small ping bars ───────────────────
+
+class _PingBarsSmall extends StatelessWidget {
+  const _PingBarsSmall({required this.pingMs});
+
+  final int pingMs;
+
+  Color get _color {
+    if (pingMs <= 0 || pingMs < 80) return const Color(0xFF4CAF50);
+    if (pingMs <= 150) return const Color(0xFFFFC107);
+    return const Color(0xFFF44336);
+  }
+
+  int get _level {
+    if (pingMs <= 0 || pingMs < 80) return 3;
+    if (pingMs <= 150) return 2;
+    return 1;
+  }
+
+  Widget _bar(double h, bool active) => Container(
+        width: 4,
+        height: h,
+        decoration: BoxDecoration(
+          color: active ? _color : _color.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _bar(7, _level >= 1),
+        const SizedBox(width: 2),
+        _bar(11, _level >= 2),
+        const SizedBox(width: 2),
+        _bar(15, _level >= 3),
+      ],
+    );
+  }
+}
+
+// ─────────────────── Data model ───────────────────
+
+class _HomeData {
+  const _HomeData({
+    required this.locations,
+    required this.configs,
+    required this.subscriptionStatus,
+  });
+
+  final List<LocationItem> locations;
+  final Map<String, String> configs;
+  final String subscriptionStatus;
+}
+
+// ─────────────────── CountryNode kept for legacy ───────────────────
 
 class CountryNode {
   CountryNode({
@@ -514,11 +913,11 @@ class CountryNode {
   String get key => code.toLowerCase().isNotEmpty ? code.toLowerCase() : name.toLowerCase();
 
   factory CountryNode.fromApi(Map<String, dynamic> json) {
-    final name = (json['name'] ?? json['country'] ?? json['title'] ?? 'Unknown').toString();
-    final code = (json['code'] ?? json['country_code'] ?? json['iso'] ?? '').toString();
+    final name = (json['name'] ?? json['country'] ?? 'Unknown').toString();
+    final code = (json['code'] ?? json['country_code'] ?? '').toString();
     final pingRaw = json['ping'] ?? json['latency'] ?? 0;
     final ping = int.tryParse(pingRaw.toString()) ?? 0;
-    final flagRaw = json['flag_emoji'] ?? json['flag'] ?? json['emoji'];
+    final flagRaw = json['flag_emoji'] ?? json['flag'];
     final flag = (flagRaw != null && flagRaw.toString().isNotEmpty)
         ? flagRaw.toString()
         : _flagFromCode(code);
@@ -528,9 +927,7 @@ class CountryNode {
   static String _flagFromCode(String code) {
     final upper = code.toUpperCase();
     if (upper.length != 2) return '🌍';
-    const int base = 127397;
-    final int first = upper.codeUnitAt(0) + base;
-    final int second = upper.codeUnitAt(1) + base;
-    return String.fromCharCodes([first, second]);
+    const base = 127397;
+    return String.fromCharCodes([upper.codeUnitAt(0) + base, upper.codeUnitAt(1) + base]);
   }
 }

@@ -94,8 +94,79 @@ class ApiService {
     return _post('/api/v1/subscription/activate/$planId', auth: true);
   }
 
+  Future<Map<String, dynamic>> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    final data = await _post(
+      '/api/v1/auth/verify-email',
+      body: {'email': email, 'code': code},
+    );
+    final token = data['token']?.toString();
+    if (token != null && token.isNotEmpty) {
+      await saveToken(token);
+    }
+    return data;
+  }
+
+  Future<void> resendCode({required String email}) {
+    return _post('/api/v1/auth/resend-code', body: {'email': email});
+  }
+
+  Future<Map<String, dynamic>> registerDevice({
+    required String fingerprint,
+    required String name,
+    required String platform,
+  }) {
+    return _post(
+      '/api/v1/devices/register',
+      body: {'fingerprint': fingerprint, 'name': name, 'platform': platform},
+      auth: true,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getDevices() async {
+    final data = await _get('/api/v1/devices', auth: true);
+    if (data is List) {
+      return (data as List).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+    }
+    return _extractList(data);
+  }
+
+  Future<void> renameDevice(int id, String name) {
+    return _put('/api/v1/devices/$id', body: {'name': name}, auth: true);
+  }
+
+  Future<void> deleteDevice(int id) {
+    return _delete('/api/v1/devices/$id', auth: true);
+  }
+
   Future<Map<String, dynamic>> _get(String path, {bool auth = false}) async {
     final response = await _client.get(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(auth: auth),
+    );
+    return _decodeResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = false,
+  }) async {
+    final response = await _client.put(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(auth: auth),
+      body: body == null ? null : jsonEncode(body),
+    );
+    return _decodeResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _delete(
+    String path, {
+    bool auth = false,
+  }) async {
+    final response = await _client.delete(
       Uri.parse('$_baseUrl$path'),
       headers: await _headers(auth: auth),
     );
