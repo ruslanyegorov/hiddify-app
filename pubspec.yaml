@@ -1,7 +1,7 @@
 name: hiddify
 description: Cross Platform Multi Protocol Proxy Frontend.
 publish_to: "none"
-version: 4.1.3+40103
+version: 1.0.2+10102
 
 environment:
   sdk: ^3.10.4
@@ -200,9 +200,9 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icon.png"
+  image_path: "assets/images/icon_1024.png"
   adaptive_icon_background: "#F5A623"
-  adaptive_icon_foreground: "assets/images/icon.png"
+  adaptive_icon_foreground: "assets/images/icon_1024.png"
   remove_alpha_ios: true
 
 ffigen:
