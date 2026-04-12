@@ -113,6 +113,22 @@ class ApiService {
     return _post('/api/v1/auth/resend-code', body: {'email': email});
   }
 
+  Future<void> forgotPassword({required String email}) {
+    return _post('/api/v1/auth/forgot-password', body: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) {
+    return _post('/api/v1/auth/reset-password', body: {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
+  }
+
   Future<Map<String, dynamic>> registerDevice({
     required String fingerprint,
     required String name,

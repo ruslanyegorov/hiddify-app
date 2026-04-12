@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hiddify/features/kolobok/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 const Color _kAccent = Color(0xFFF5A623);
 const Color _kBorder = Color(0xFFE0E0E0);
@@ -42,6 +46,17 @@ class _AuthPageState extends State<AuthPage> {
   String _pendingEmail = '';
   final _codeController = TextEditingController();
 
+  // Forgot password state
+  bool _forgotStep1 = false; // ввод email
+  bool _forgotStep2 = false; // ввод кода + нового пароля
+  String _forgotEmail = '';
+  final _forgotEmailController = TextEditingController();
+  final _forgotCodeController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _newPasswordConfirmController = TextEditingController();
+  bool _obscureNew = true;
+  bool _obscureNewConfirm = true;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -49,6 +64,10 @@ class _AuthPageState extends State<AuthPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _codeController.dispose();
+    _forgotEmailController.dispose();
+    _forgotCodeController.dispose();
+    _newPasswordController.dispose();
+    _newPasswordConfirmController.dispose();
     super.dispose();
   }
 
@@ -90,6 +109,94 @@ class _AuthPageState extends State<AuthPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Скоро')),
     );
+  }
+
+  Future<void> _forgotSendCode() async {
+    final email = _forgotEmailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _errorText = 'Введите корректный email');
+      return;
+    }
+    setState(() { _loading = true; _errorText = null; });
+    try {
+      await _api.forgotPassword(email: email);
+      if (!mounted) return;
+      setState(() {
+        _forgotEmail = email;
+        _forgotStep1 = false;
+        _forgotStep2 = true;
+      });
+    } catch (e) {
+      setState(() => _errorText = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _forgotResetPassword() async {
+    final code = _forgotCodeController.text.trim();
+    final newPass = _newPasswordController.text;
+    final confirm = _newPasswordConfirmController.text;
+    if (code.length != 6) {
+      setState(() => _errorText = 'Введите 6-значный код');
+      return;
+    }
+    if (newPass.length < 6) {
+      setState(() => _errorText = 'Минимум 6 символов');
+      return;
+    }
+    if (newPass != confirm) {
+      setState(() => _errorText = 'Пароли не совпадают');
+      return;
+    }
+    setState(() { _loading = true; _errorText = null; });
+    try {
+      await _api.resetPassword(email: _forgotEmail, code: code, newPassword: newPass);
+      if (!mounted) return;
+      // Сбрасываем состояние и возвращаем на логин
+      setState(() {
+        _forgotStep2 = false;
+        _forgotEmail = '';
+        _forgotCodeController.clear();
+        _newPasswordController.clear();
+        _newPasswordConfirmController.clear();
+        _isLogin = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пароль успешно изменён. Войдите с новым паролем.')),
+      );
+    } catch (e) {
+      setState(() => _errorText = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _registerDeviceSilently() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      var fingerprint = prefs.getString('kolobok_device_id');
+      if (fingerprint == null || fingerprint.isEmpty) {
+        fingerprint = const Uuid().v4();
+        await prefs.setString('kolobok_device_id', fingerprint);
+      }
+      final platform = Platform.isAndroid
+          ? 'android'
+          : Platform.isIOS
+              ? 'ios'
+              : Platform.isWindows
+                  ? 'windows'
+                  : Platform.isMacOS
+                      ? 'macos'
+                      : 'linux';
+      await _api.registerDevice(
+        fingerprint: fingerprint,
+        name: platform == 'android' ? 'Android Device' : platform == 'ios' ? 'iPhone' : 'Desktop',
+        platform: platform,
+      );
+    } catch (_) {
+      // Silently ignore — не критично
+    }
   }
 
   String _usernameFromEmail(String email) {
@@ -256,6 +363,7 @@ class _AuthPageState extends State<AuthPage> {
       final email = _emailController.text.trim();
       if (_isLogin) {
         await _api.login(email: email, password: _passwordController.text);
+        await _registerDeviceSilently();
         if (!mounted) return;
         widget.onAuthenticated();
       } else {
@@ -290,6 +398,7 @@ class _AuthPageState extends State<AuthPage> {
     });
     try {
       await _api.verifyEmail(email: _pendingEmail, code: code);
+      await _registerDeviceSilently();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -320,9 +429,9 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_awaitingVerification) {
-      return _buildVerificationScreen();
-    }
+    if (_awaitingVerification) return _buildVerificationScreen();
+    if (_forgotStep1) return _buildForgotStep1();
+    if (_forgotStep2) return _buildForgotStep2();
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F0),
       resizeToAvoidBottomInset: false,
@@ -384,7 +493,11 @@ class _AuthPageState extends State<AuthPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: _showComingSoonSnackBar,
+                      onPressed: () => setState(() {
+                        _forgotStep1 = true;
+                        _errorText = null;
+                        _forgotEmailController.text = _emailController.text.trim();
+                      }),
                       style: TextButton.styleFrom(foregroundColor: _kAccent),
                       child: const Text('Забыли пароль?'),
                     ),
@@ -555,6 +668,193 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Шаг 1: ввод email для сброса ──
+  Widget _buildForgotStep1() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F0),
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _logoHeader(),
+              _title('Восстановление пароля'),
+              const SizedBox(height: 8),
+              const Text(
+                'Введите email, на который зарегистрирован аккаунт',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF666666), fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              const Text('Email', style: _kFieldLabelStyle),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _forgotEmailController,
+                style: _kFieldInputStyle,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: _inputDecoration(),
+              ),
+              const SizedBox(height: 8),
+              if (_errorText != null) ...[
+                Text(_errorText!,
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _forgotSendCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kAccent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _kAccent.withValues(alpha: 0.6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 24, height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Отправить код',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => setState(() { _forgotStep1 = false; _errorText = null; }),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF666666)),
+                child: const Text('← Назад к входу'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Шаг 2: ввод кода и нового пароля ──
+  Widget _buildForgotStep2() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F0),
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _logoHeader(),
+              _title('Новый пароль'),
+              const SizedBox(height: 8),
+              Text(
+                'Код отправлен на $_forgotEmail',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF666666), fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              const Text('Код из письма', style: _kFieldLabelStyle),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _forgotCodeController,
+                style: _kFieldInputStyle,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                decoration: _inputDecoration().copyWith(
+                  hintText: '000000',
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Новый пароль', style: _kFieldLabelStyle),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _newPasswordController,
+                style: _kFieldInputStyle,
+                obscureText: _obscureNew,
+                decoration: _inputDecoration(
+                  suffixIcon: _passwordSuffix(
+                    () => setState(() => _obscureNew = !_obscureNew),
+                    _obscureNew,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Повторите пароль', style: _kFieldLabelStyle),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _newPasswordConfirmController,
+                style: _kFieldInputStyle,
+                obscureText: _obscureNewConfirm,
+                decoration: _inputDecoration(
+                  suffixIcon: _passwordSuffix(
+                    () => setState(() => _obscureNewConfirm = !_obscureNewConfirm),
+                    _obscureNewConfirm,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_errorText != null) ...[
+                Text(_errorText!,
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _forgotResetPassword,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kAccent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _kAccent.withValues(alpha: 0.6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 24, height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Сохранить пароль',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _loading
+                    ? null
+                    : () async {
+                        await _api.forgotPassword(email: _forgotEmail);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Код отправлен повторно')),
+                        );
+                      },
+                style: TextButton.styleFrom(foregroundColor: _kAccent),
+                child: const Text('Отправить код повторно'),
+              ),
+              TextButton(
+                onPressed: () => setState(() {
+                  _forgotStep2 = false;
+                  _forgotStep1 = true;
+                  _errorText = null;
+                }),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF666666)),
+                child: const Text('← Назад'),
+              ),
+            ],
+          ),
         ),
       ),
     );
